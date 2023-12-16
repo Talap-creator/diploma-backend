@@ -14,7 +14,7 @@ services:
     env_file:
       - ./ecoMarket/.env
     depends_on:
-      - db
+      - postgres
 
   postgres:
     image: postgres:latest
