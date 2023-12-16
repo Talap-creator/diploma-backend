@@ -18,13 +18,10 @@ services:
 
   db:
     image: postgres:latest
-    restart: unless-stopped
     environment:
-      POSTGRES_DB: your_database_name
-      POSTGRES_USER: your_database_user
-      POSTGRES_PASSWORD: your_database_password
-    volumes:
-      - postgres_data:/var/lib/postgresql/data/
+      POSTGRES_DB: mydatabase
+      POSTGRES_USER: mydatabaseuser
+      POSTGRES_PASSWORD: mydatabasepassword
 
 volumes:
   postgres_data:
