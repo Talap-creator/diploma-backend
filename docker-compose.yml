@@ -19,9 +19,9 @@ services:
   postgres:
     image: postgres:latest
     environment:
-      POSTGRES_DB: mydatabase
-      POSTGRES_USER: mydatabaseuser
-      POSTGRES_PASSWORD: mydatabasepassword
+      POSTGRES_DB: ecomarket
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: myPassword
 
 volumes:
   postgres_data:
