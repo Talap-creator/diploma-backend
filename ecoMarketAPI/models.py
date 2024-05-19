@@ -12,7 +12,16 @@ class ProductCategory(models.Model):
     def __str__(self):
         return self.name
 
+class Review(models.Model):
+    id = models.AutoField(primary_key=True)
+    user = models.ForeignKey(User, on_delete=models.CASCADE)
+    rating = models.IntegerField(validators=[MinValueValidator(1), MaxValueValidator(5)])
+    review = models.TextField()
+    created_at = models.DateTimeField(auto_now_add=True)
 
+    def __str__(self):
+        return f'{self.review}'
+      
 class Product(models.Model):
     id = models.AutoField(primary_key=True)
     title = models.CharField(max_length=255)
@@ -21,11 +30,19 @@ class Product(models.Model):
     image = models.URLField(null=True)
     quantity = quantity = models.IntegerField()
     price = models.DecimalField(decimal_places=5, max_digits=10)
-
+    reviews = models.ManyToManyField(Review)
     def __str__(self):
         return self.title
 
 
+class OrderItem(models.Model):
+    id = models.AutoField(primary_key=True)
+    product = models.ForeignKey(Product, on_delete=models.CASCADE)
+    quantity = models.IntegerField(default=1)
+
+    def __str__(self):
+        return f'{self.quantity} of {self.product.name}'
+    
 class Order(models.Model):
     user = models.ForeignKey(User, on_delete=models.CASCADE)
     order_number = models.BigAutoField(primary_key=True)
@@ -35,24 +52,7 @@ class Order(models.Model):
     comments = models.CharField(max_length=255)
     created_at = models.DateTimeField(auto_now_add=True)
     delivery_cost = models.IntegerField(default=150, editable=False)
-    ordered_product_list = models.JSONField(editable=False, default=list)
+    items = models.ManyToManyField(OrderItem)
     total_amount = models.DecimalField(editable=False, max_digits=10, decimal_places=3, default=0)
-    def add_to_ordered_products(self, product_id, quantity):
-        current_ordered_products = self.ordered_product_list
-
-        # Append a new dictionary to the list
-        current_ordered_products.append({"product_id": product_id, "quantity": quantity})
-
-        # Update the ordered_product_list field and save the model instance
-        self.ordered_product_list = current_ordered_products
-        self.save(update_fields=['ordered_product_list'])
-        
-    def __str__(self):
-        return str(self.total_amount)
-
-
-class OrderItem(models.Model):
-    id = models.AutoField(primary_key=True)
-    product = models.ForeignKey(Product, on_delete=models.CASCADE)
-    quantity = models.PositiveIntegerField()
-    order = models.ForeignKey(Order, on_delete=models.CASCADE)
+    
+    
