@@ -30,7 +30,7 @@ class Product(models.Model):
     image = models.URLField(null=True)
     quantity = quantity = models.IntegerField()
     price = models.DecimalField(decimal_places=5, max_digits=10)
-    reviews = models.ManyToManyField(Review)
+    reviews = models.ManyToManyField(Review, default=None, blank=True)
     def __str__(self):
         return self.title
 
