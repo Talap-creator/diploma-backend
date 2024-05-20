@@ -9,12 +9,18 @@ https://docs.djangoproject.com/en/5.0/topics/settings/
 For the full list of settings and their values, see
 https://docs.djangoproject.com/en/5.0/ref/settings/
 """
+import environ
 
 from pathlib import Path
-import environ
+from datetime import timedelta
+from dotenv import load_dotenv
+import os
+
+load_dotenv()
 env = environ.Env()
 environ.Env.read_env()
-from datetime import timedelta
+
+
 
 SECRET_KEY = env('SECRET_KEY')
 
@@ -84,10 +90,14 @@ WSGI_APPLICATION = 'ecoMarket.wsgi.application'
 # https://docs.djangoproject.com/en/5.0/ref/settings/#databases
 
 DATABASES = {
-    'default': {
-        'ENGINE': 'django.db.backends.sqlite3',
-        'NAME': BASE_DIR / 'db.sqlite3',
-    }
+     'default': {
+         'ENGINE': 'django.db.backends.postgresql',
+         'NAME': env('DB_NAME'),
+         'USER': env('DB_USER'),
+         'PASSWORD': env('DB_PASSWORD'),
+         'HOST': env('DB_HOST'),
+         'PORT': env('DB_PORT'),
+     }
 }
 
 
@@ -170,5 +180,5 @@ CORS_ALLOW_ALL_ORIGINS = True
 
 CORS_ALLOW_CREDENTIALS = True
 
-CSRF_TRUSTED_ORIGINS = ['http://localhost:3000','https://*.127.0.0.1']
+#CSRF_TRUSTED_ORIGINS = ['http://localhost:3000','https://*.127.0.0.1']
 
