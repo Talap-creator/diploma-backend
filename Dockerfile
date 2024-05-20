@@ -1,33 +1,16 @@
-# Use an official Python runtime as a parent image
 FROM python:3.10
 
-# Set the working directory to /app
+# Установка рабочей директории в контейнере
 WORKDIR /app
 
-# Copy the pyproject.toml and poetry.lock files to the container
-COPY pyproject.toml poetry.lock /app/
+# Копирование файла зависимостей в рабочую директорию
+COPY requirements.txt .
 
-# Install system dependencies
-RUN apt-get update && \
-    apt-get install -y curl
+# Установка зависимостей
+RUN pip install --no-cache-dir -r requirements.txt
 
-# Install Poetry
-RUN curl -sSL https://install.python-poetry.org | python -
+# Копирование исходного кода проекта в контейнер
+COPY . .
 
-# Add Poetry bin directory to the PATH
-ENV PATH="${PATH}:/root/.local/bin"
-
-# Install project dependencies using Poetry
-RUN poetry install --no-interaction --no-ansi
-
-# Copy the rest of the application code to the container
-COPY . /app
-
-# Expose the port that Django will run on
-EXPOSE 8000
-
-# Run Django migrations and start the development server
-CMD ["poetry", "run", "python", "manage.py", "migrate", "&&", "poetry", "run", "python", "manage.py", "runserver", "0.0.0.0:8000"]
-
-RUN echo "Current directory: $(pwd)" && \
-    echo "Installed packages: $(poetry show -v)"
+# Запуск сервера Django на порту 8000
+CMD ["python", "manage.py", "runserver", "0.0.0.0:8000"]
