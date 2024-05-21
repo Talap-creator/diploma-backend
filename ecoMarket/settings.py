@@ -184,5 +184,5 @@ CORS_ALLOW_ALL_ORIGINS = True
 
 CORS_ALLOW_CREDENTIALS = True
 
-#CSRF_TRUSTED_ORIGINS = ['http://localhost:3000','https://*.127.0.0.1']
+CSRF_TRUSTED_ORIGINS = ['https://techno-marketplace-doub5.ondigitalocean.app/']
 
