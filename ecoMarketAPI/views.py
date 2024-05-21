@@ -6,7 +6,7 @@ from rest_framework.views import APIView
 from django.utils import timezone
 from .models import OrderItem, Order, Product, ProductCategory, Review
 from .serializers import OrderSerializer, ProductSerializer, ProductCategorySerializer, RegistrationSerializer, UserSerializer, ReviewSerializer
-import json
+from rest_framework import viewsets
 from rest_framework.views import APIView
 from rest_framework.response import Response
 from rest_framework.permissions import IsAuthenticated
@@ -19,6 +19,12 @@ from django.shortcuts import get_object_or_404
 from django.views.decorators.http import require_http_methods
 from django.contrib.auth import get_user_model
 from rest_framework.exceptions import NotFound
+from django.middleware.csrf import get_token
+
+def get_csrf(request):
+    csrf_token = get_token(request)
+    return JsonResponse({'csrfToken': csrf_token})
+
 
 class RegisterAPIView(generics.CreateAPIView):
     queryset = User.objects.all()
@@ -41,7 +47,9 @@ class LoginAPIView(TokenObtainPairView):
 
         return response
 
+from django.views.decorators.csrf import csrf_protect
 
+@csrf_protect
 def get_cart(request):
     # Retrieve the cart from the session
     cart = request.session.get('cart', {})
@@ -163,7 +171,12 @@ class ReviewDetailView(generics.RetrieveUpdateDestroyAPIView):
         if not obj:
             raise NotFound("No Review found for the provided Product ID and Review ID")
         return obj
-        
+
+class ReviewListView(generics.ListAPIView):
+    queryset = Review.objects.all()
+    serializer_class = ReviewSerializer
+    lookup_field = 'id'
+    
 class ReviewView(generics.ListCreateAPIView):
     permission_classes = [IsAuthenticated]
     queryset = Review.objects.all()
@@ -183,4 +196,12 @@ class ReviewView(generics.ListCreateAPIView):
             product=product
         )
         return Response(ReviewSerializer(review).data)
+    
+    
+class ProductByCategoryViewSet(viewsets.ViewSet):
+    serializer_class = ProductSerializer
+    def list(self, request, category_id):
+        products = Product.objects.filter(category_id=category_id)
+        serializer = ProductSerializer(products, many=True)
+        return Response(serializer.data)
     
