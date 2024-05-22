@@ -4,8 +4,8 @@ from rest_framework import generics, status
 from rest_framework.pagination import PageNumberPagination
 from rest_framework.views import APIView
 from django.utils import timezone
-from .models import OrderItem, Order, Product, ProductCategory, Review
-from .serializers import OrderSerializer, ProductSerializer, ProductCategorySerializer, RegistrationSerializer, UserSerializer, ReviewSerializer
+from .models import OrderItem, Order, Product, ProductCategory, Review, Cart, CartItem
+from .serializers import OrderSerializer, ProductSerializer, ProductCategorySerializer, RegistrationSerializer, UserSerializer, ReviewSerializer, CartItemSerializer, CartSerializer
 from rest_framework import viewsets
 from rest_framework.views import APIView
 from rest_framework.response import Response
@@ -21,9 +21,11 @@ from django.contrib.auth import get_user_model
 from rest_framework.exceptions import NotFound
 from django.middleware.csrf import get_token
 
+
 def get_csrf(request):
     csrf_token = get_token(request)
-    return JsonResponse({'csrfToken': csrf_token})
+    response = JsonResponse({'csrfToken': csrf_token})
+    return response
 
 
 class RegisterAPIView(generics.CreateAPIView):
@@ -49,90 +51,100 @@ class LoginAPIView(TokenObtainPairView):
 
 from django.views.decorators.csrf import csrf_protect
 
-@csrf_protect
-def get_cart(request):
-    # Retrieve the cart from the session
-    cart = request.session.get('cart', {})
+class CartItemAddView(generics.CreateAPIView):
+    serializer_class = CartItemSerializer
+    permission_classes = [IsAuthenticated]
+    def post(self, request, pk):
+        try:
+            product = Product.objects.get(pk=pk)
+        except Product.DoesNotExist:
+            return Response({'error': 'Product not found'}, status=status.HTTP_404_NOT_FOUND)
+        print("USER",request.user)
+        cart, _ = Cart.objects.get_or_create(user=request.user)
+        cart_item, created = CartItem.objects.get_or_create(product=product, cart=cart)
+        if not created:
+            cart_item.quantity += 1  # Assuming you want to increment the quantity if the item already exists
+        cart_item.save()
+        cart.items.add(cart_item)
+        return Response({'message': 'Product added to cart successfully'}, status=status.HTTP_201_CREATED)
 
-    # Convert the cart dictionary into a list of product details
-    cart_items = []
-    total_price = 0
-    for product_id, product in cart.items():
-        product_model = Product.objects.get(pk=product_id)
-        total_price += product_model.price * product['quantity']
-        cart_items.append({
-            'id': product_id,
-            'quantity': product['quantity'],
-            'price': product_model.price,
-            'title': product_model.title
-        })
-    response_data = {
-        'cart': cart_items,
-        'total_price': total_price
-    }
-    return JsonResponse(response_data)
+class CartDetailView(generics.RetrieveAPIView):
+    serializer_class = CartSerializer
+    permission_classes = [IsAuthenticated]
+    def get_object(self):
+        return Cart.objects.get(user=self.request.user)
 
-# Check -----------------------------------------
-def delete_cookie(request, *args, **kwargs):
-    product_id = kwargs.get('product_id')
-    cart = request.session.get('cart', {})
+class CartItemUpdateView(generics.UpdateAPIView):
+    queryset = CartItem.objects.all()
+    serializer_class = CartItemSerializer
 
-    if str(product_id) in cart:
-        del cart[str(product_id)]
-        request.session['cart'] = cart
-        return JsonResponse({'success': 'Product removed from cart', 'cart': cart})
-    return JsonResponse({'error': 'Product not found in cart'}, status=400)
-
-@require_http_methods(["POST"])  
-def add_to_cart(request, pk):
-    product = get_object_or_404(Product, pk=pk)
-    product_id = str(pk)
-    cart = request.session.get('cart', {})
-
-    if product_id in cart:
-        cart[product_id]['quantity'] += 1
-    else:
-        cart[product_id] = {'quantity': 1, 'price': str(product.price)}
-
-    # Save the cart back to the session
-    request.session['cart'] = cart
-
-    # Return success response
-    return JsonResponse({'success': 'Product added to cart', 'cart': cart})
-
-# EDIT
+class CartItemDeleteView(generics.DestroyAPIView):
+    permission_classes = [IsAuthenticated]
+    def delete(self, request, product_id):
+        try:
+            cart = Cart.objects.get(user=request.user)
+            cart_item = CartItem.objects.get(product_id=product_id, cart=cart)
+            cart_item.delete()
+            return Response({'message': 'Item removed from cart successfully'}, status=status.HTTP_204_NO_CONTENT)
+        except Cart.DoesNotExist:
+            return Response({'error': 'Cart not found'}, status=status.HTTP_404_NOT_FOUND)
+        except CartItem.DoesNotExist:
+            return Response({'error': 'Item not found in cart'}, status=status.HTTP_404_NOT_FOUND)
 
 User = get_user_model()
 
 class OrderCreateAPIView(APIView):
     serializer_class = OrderSerializer
+    permission_classes = [IsAuthenticated]
     def post(self, request):
         data = request.data
         user = request.user
-        order_items = request.session.get('cart', {})
+
+        # Fetch user's cart from the database
+        try:
+            cart = Cart.objects.get(user=user)
+        except Cart.DoesNotExist:
+            return Response({'error': 'Cart does not exist'}, status=status.HTTP_404_NOT_FOUND)
+
+        # Create a new order
         order = Order.objects.create(
             user=user,
             phone_number=data['phone_number'],
             address=data['address'],
             reference_point=data['reference_point'],
             comments=data['comments'],
-            total_amount=0
+            total_amount=0  # Initially set to zero and will update as items are added
         )
-        for product_id, items in order_items.items():
-            product = Product.objects.get(pk=product_id)
-            order_item = OrderItem.objects.create(
-            product=product,
-            quantity=items['quantity']
-            )
-            if product.quantity < items['quantity']:
-                return Response({'error': 'Not enough stock'}, status=status.HTTP_400_BAD_REQUEST)
-            product.quantity -= items['quantity']
-            order.items.add(order_item)
-            order.total_amount += product.price * items['quantity']
-        request.session['cart'] = {}
-        order.save()
-        return Response(OrderSerializer(order).data)
 
+        # Process each item in the cart
+        for cart_item in cart.items.all():
+            product = cart_item.product
+            quantity = cart_item.quantity
+
+            # Check if sufficient stock is available
+            if product.quantity < quantity:
+                return Response({'error': 'Not enough stock for {}'.format(product.name)}, status=status.HTTP_400_BAD_REQUEST)
+
+            # Create order item
+            order_item = OrderItem.objects.create(
+                order=order,
+                product=product,
+                quantity=quantity
+            )
+
+            # Update product stock and order total
+            product.quantity -= quantity
+            product.save()
+            order.total_amount += product.price * quantity
+            order.items.add(order_item)
+
+        # Clear the cart once the order is placed
+        cart.items.clear()
+        order.save()
+
+        # Return the serialized order
+        return Response(OrderSerializer(order).data)
+    
 class OrderListAPIView(APIView):
     serializer_class = OrderSerializer
     permission_classes = [IsAuthenticated]
